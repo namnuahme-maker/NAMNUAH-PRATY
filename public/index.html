@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAMNUAH PRATY (❁´◡`❁)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Kanit', sans-serif; }
+        body { background: #111827; color: #e5e7eb; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+
+        /* Range slider */
+        input[type="range"] { -webkit-appearance: none; background: #374151; height: 6px; border-radius: 3px; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #7dd3fc; cursor: pointer; border: 2px solid #1f2937;
+        }
+
+        /* Danmaku */
+        .danmaku-text {
+            position: absolute; white-space: nowrap; color: #fff; font-size: 2.4rem; font-weight: 500;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7);
+            pointer-events: none; z-index: 40;
+            left: 100%; transform: translateX(0);
+            animation: danmaku-slide linear forwards;
+        }
+        @keyframes danmaku-slide {
+            to { left: 0; transform: translateX(-100%); }
+        }
+
+        /* Floating reaction */
+        .float-emoji {
+            position: absolute; font-size: 2.5rem; pointer-events: none; z-index: 45;
+            animation: emoji-rise 2.5s ease-out forwards;
+        }
+        @keyframes emoji-rise {
+            0% { opacity: 0; transform: translateY(0) scale(0.5); }
+            20% { opacity: 1; transform: translateY(-60px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-400px) scale(0.6); }
+        }
+
+        /* Glow button hover */
+        .btn-glow:hover { box-shadow: 0 0 15px rgba(125,211,252,0.3); }
+
+        /* Fullscreen styles - when player-area is fullscreened, overlays stay visible */
+        #player-area:fullscreen,
+        #player-area:-webkit-full-screen {
+            width: 100vw; height: 100vh; background: #000;
+        }
+        #player-area:fullscreen #danmaku-layer,
+        #player-area:-webkit-full-screen #danmaku-layer {
+            z-index: 2147483647;
+        }
+        #player-area:fullscreen .float-emoji,
+        #player-area:-webkit-full-screen .float-emoji {
+            z-index: 2147483646;
+        }
+        #player-area:fullscreen #fs-btn,
+        #player-area:-webkit-full-screen #fs-btn {
+            z-index: 2147483647;
+        }
+        #player-area:fullscreen .danmaku-text,
+        #player-area:-webkit-full-screen .danmaku-text {
+            font-size: 3.4rem;
+        }
+    </style>
+</head>
+<body class="h-[100dvh] flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-gray-900 border-b border-gray-700/50 px-4 py-2.5 flex items-center justify-between shrink-0 z-30">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-sky-400/20 border border-sky-400/30 rounded-lg flex items-center justify-center">
+                <i class="fa-solid fa-music text-sky-300"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-semibold text-white leading-tight">NAMNUAH PRATY <span class="text-sky-300">(❁´◡`❁)</span></h1>
+                <p class="text-[10px] text-gray-400">ระบบคิวเพลง ควบคุมผ่านมือถือได้</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="status-badge" class="text-[11px] px-2 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30">
+                ● กำลังเชื่อมต่อ
+            </span>
+            <span id="online-count" class="text-[11px] px-2 py-1 rounded bg-gray-800 text-gray-400 border border-gray-700 hidden sm:inline-flex items-center gap-1">
+                <i class="fa-solid fa-users text-[9px]"></i> <span id="online-num">0</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+
+        <!-- Video Player Area -->
+        <section id="player-area" class="h-[28vh] md:h-auto md:w-[80%] md:flex-none bg-black relative flex items-center justify-center overflow-hidden shrink-0">
+            <!-- Danmaku layer -->
+            <div id="danmaku-layer" class="absolute inset-0 pointer-events-none overflow-hidden z-30"></div>
+            
+            <!-- YT Player -->
+            <div id="yt-player" class="w-full h-full"></div>
+            
+            <!-- Empty state -->
+            <div id="empty-state" class="absolute inset-0 bg-gray-950 flex flex-col items-center justify-center z-10">
+                <div class="w-16 h-16 rounded-full bg-gray-900 border border-gray-700/50 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-play text-sky-300 text-2xl ml-1"></i>
+                </div>
+                <p class="text-gray-400 text-sm">ยังไม่มีเพลงในคิว</p>
+                <p class="text-gray-500 text-xs mt-1">วางลิงก์ YouTube เพื่อเริ่มเล่น</p>
+            </div>
+
+            <!-- Fullscreen button (custom - so danmaku/reactions stay visible) -->
+            <button id="fs-btn" class="absolute bottom-3 right-3 bg-gray-900/80 backdrop-blur hover:bg-gray-700/80 px-2.5 py-1.5 rounded text-gray-300 text-xs border border-gray-700/50 z-40 transition" title="เต็มจอ">
+                <i class="fa-solid fa-expand"></i>
+            </button>
+
+            <!-- Player status badge -->
+            <div id="host-badge" class="absolute bottom-3 left-3 bg-gray-900/80 backdrop-blur px-2.5 py-1 rounded text-[10px] text-gray-400 border border-gray-700/50 z-20 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span> HOST MODE
+            </div>
+            </div>
+        </section>
+
+        <!-- Right Panel -->
+        <aside class="w-full md:w-[20%] md:flex-none flex-1 min-h-0 bg-gray-900 flex flex-col overflow-hidden shrink-0 border-l border-gray-700/30">
+            
+            <!-- Toggle + QR -->
+            <div class="p-3 border-b border-gray-700/30 flex items-center justify-between shrink-0">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="toggle-host" checked class="sr-only peer">
+                    <div class="w-8 h-[18px] bg-gray-700 rounded-full peer-checked:bg-sky-500 relative after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-[14px] after:h-[14px] after:bg-white after:rounded-full after:transition-all peer-checked:after:translate-x-[14px]"></div>
+                    <span class="text-[11px] text-gray-400">เปิดเครื่องเล่น</span>
+                </label>
+                <button id="qr-open" class="text-[11px] text-sky-300 hover:text-sky-200 flex items-center gap-1">
+                    <i class="fa-solid fa-qrcode"></i> QR รีโมท
+                </button>
+            </div>
+
+            <!-- Mobile Tabs -->
+            <div class="flex border-b border-gray-700/30 md:hidden shrink-0">
+                <button id="tab-ctrl" class="flex-1 py-2.5 text-xs font-medium text-sky-300 border-b-2 border-sky-400">
+                    <i class="fa-solid fa-sliders mr-1"></i>ควบคุม
+                </button>
+                <button id="tab-queue" class="flex-1 py-2.5 text-xs font-medium text-gray-500 border-b-2 border-transparent">
+                    <i class="fa-solid fa-list mr-1"></i>คิว (<span id="q-count-mobile">0</span>)
+                </button>
+            </div>
+
+            <!-- Scrollable content -->
+            <div class="flex-1 overflow-y-auto p-4 pb-6 space-y-4">
+
+                <!-- Controls Section -->
+                <div id="sec-ctrl" class="space-y-2">
+
+                    <!-- Nickname + Add URL (compact row on mobile) -->
+                    <div class="bg-gray-800/50 border border-gray-700/40 rounded-xl p-2 space-y-2">
+                        <div>
+                            <label class="text-[10px] text-gray-500 uppercase tracking-wider block mb-0.5">ชื่อเล่น</label>
+                            <input id="nickname" type="text" placeholder="ใส่ชื่อของคุณ..." class="w-full bg-gray-800 border border-gray-600/40 rounded-lg px-2 py-1 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-sky-500/50">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-500 uppercase tracking-wider block mb-0.5">เพิ่มเพลงเข้าคิว</label>
+                            <div class="flex gap-2">
+                                <input id="url-input" type="text" placeholder="วางลิงก์ YouTube..." class="flex-1 bg-gray-800 border border-gray-600/40 rounded-lg px-2 py-1 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-sky-500/50">
+                                <button id="add-btn" class="bg-sky-500 hover:bg-sky-400 text-gray-900 font-semibold px-3 rounded-lg text-sm transition btn-glow">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Now Playing + Controls -->
+                    <div class="bg-gray-800/50 border border-gray-700/40 rounded-xl p-2 space-y-2">
+                        <div class="text-center">
+                            <span class="text-[9px] text-sky-300 uppercase tracking-widest">กำลังเล่น</span>
+                            <h4 id="now-title" class="text-sm font-medium text-white truncate">ยังไม่มีเพลง</h4>
+                            <p id="now-author" class="text-[10px] text-gray-500 truncate">—</p>
+                        </div>
+
+                        <!-- Progress -->
+                        <div>
+                            <div id="progress-bar" class="w-full h-1.5 bg-gray-700 rounded-full cursor-pointer overflow-hidden">
+                                <div id="progress-fill" class="h-full bg-sky-400 rounded-full transition-all duration-300" style="width:0%"></div>
+                            </div>
+                            <div class="flex justify-between text-[9px] text-gray-500 mt-1 font-mono">
+                                <span id="time-now">0:00</span>
+                                <span id="time-total">0:00</span>
+                            </div>
+                        </div>
+
+                        <!-- Volume -->
+                        <div class="flex items-center gap-2">
+                            <button id="vol-down" class="w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded flex items-center justify-center text-gray-300 text-[10px] transition">
+                                <i class="fa-solid fa-volume-low"></i>
+                            </button>
+                            <input id="vol-slider" type="range" min="0" max="100" value="50" class="flex-1">
+                            <button id="vol-up" class="w-6 h-6 bg-gray-700 hover:bg-gray-600 rounded flex items-center justify-center text-gray-300 text-[10px] transition">
+                                <i class="fa-solid fa-volume-high"></i>
+                            </button>
+                            <span id="vol-label" class="text-[10px] text-gray-400 w-8 text-right">50%</span>
+                        </div>
+
+                        <!-- Play / Vote Skip / Force Skip -->
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <button id="btn-play" class="bg-gray-700 hover:bg-gray-600 border border-gray-600/50 text-white rounded-lg py-1.5 flex flex-col items-center transition">
+                                <i id="icon-play" class="fa-solid fa-play text-base text-sky-300"></i>
+                            </button>
+                            <button id="btn-vote" class="bg-gray-700 hover:bg-gray-600 border border-gray-600/50 text-white rounded-lg py-1.5 flex flex-col items-center transition relative">
+                                <i class="fa-solid fa-forward-step text-base"></i>
+                                <span id="vote-label" class="text-[8px] text-gray-400 mt-0.5">โหวตข้าม 0</span>
+                            </button>
+                            <button id="btn-skip" class="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-lg py-1.5 flex flex-col items-center transition">
+                                <i class="fa-solid fa-forward text-base"></i>
+                                <span class="text-[8px] mt-0.5">ข้ามเลย</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Reactions + Danmaku (Combined) -->
+                    <div class="bg-gray-800/50 border border-gray-700/40 rounded-xl p-2 space-y-2">
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <button id="react-love" class="bg-gray-800 hover:bg-gray-700 border border-gray-600/30 rounded-lg py-1.5 flex flex-col items-center gap-0.5 transition active:scale-95">
+                                <span class="text-lg">😍</span>
+                                <span class="text-[8px] text-gray-400">ชอบมาก!!!</span>
+                            </button>
+                            <button id="react-ok" class="bg-gray-800 hover:bg-gray-700 border border-gray-600/30 rounded-lg py-1.5 flex flex-col items-center gap-0.5 transition active:scale-95">
+                                <span class="text-lg">👍</span>
+                                <span class="text-[8px] text-gray-400">ด้ายยยอยู่่</span>
+                            </button>
+                            <button id="react-bad" class="bg-gray-800 hover:bg-gray-700 border border-gray-600/30 rounded-lg py-1.5 flex flex-col items-center gap-0.5 transition active:scale-95">
+                                <span class="text-lg">👎</span>
+                                <span class="text-[8px] text-gray-400">ข้ามๆๆ บ่ผ่าน</span>
+                            </button>
+                        </div>
+                        <div class="flex gap-2">
+                            <input id="msg-input" type="text" placeholder="พิมพ์ข้อความวิ่ง..." class="flex-1 bg-gray-800 border border-gray-600/40 rounded-lg px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-sky-500/50">
+                            <button id="msg-btn" class="bg-sky-500 hover:bg-sky-400 text-gray-900 px-3 rounded-lg text-sm font-semibold transition btn-glow">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Queue Section -->
+                <div id="sec-queue" class="hidden md:block space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs text-gray-400 uppercase tracking-wider"><i class="fa-solid fa-list text-sky-300 mr-1"></i> คิวถัดไป (<span id="q-count">0</span>)</h3>
+                        <button id="clear-btn" class="text-[10px] text-red-400/70 hover:text-red-400 transition">ล้างคิว</button>
+                    </div>
+                    <div id="queue-list" class="space-y-2 max-h-[350px] overflow-y-auto">
+                        <p class="text-center text-xs text-gray-600 py-8">คิวว่างเปล่า</p>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+    </main>
+
+    <!-- Credit Footer -->
+    <footer class="bg-gray-900/90 border-t border-gray-700/30 px-4 py-1.5 text-center shrink-0 z-20">
+        <p class="text-[10px] text-gray-500">
+            สร้างโดย <span class="text-sky-300 font-medium">น้ำเหนือ</span> 
+            <span class="ml-1 text-gray-400">(❁´◡`❁) (●'◡'●) ╰(*°▽°*)╯ (^///^)</span>
+        </p>
+    </footer>
+
+    <!-- QR Modal -->
+    <div id="qr-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-900 border border-gray-700/50 rounded-2xl p-6 w-full max-w-xs text-center relative">
+            <button id="qr-close" class="absolute top-3 right-3 text-gray-500 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            <h3 class="text-base font-semibold text-white mb-1">เชื่อมต่อมือถือ</h3>
+            <p class="text-[11px] text-gray-500 mb-4">ต่อ Wi-Fi เดียวกัน แล้วสแกน QR</p>
+            <div class="bg-white p-3 rounded-xl inline-block mb-3">
+                <div id="qrcode"></div>
+            </div>
+            <div class="bg-gray-800 rounded-lg px-3 py-2 flex items-center justify-between">
+                <span id="url-display" class="text-[11px] text-sky-300 font-mono select-all truncate">—</span>
+                <button id="copy-btn" class="text-gray-400 hover:text-white text-xs ml-2"><i class="fa-regular fa-copy"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>
