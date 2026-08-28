@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="th" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAMNUAH PRATY (❁´◡`❁) 🎵 ระบบคิวเพลง</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#fdf9eb',
+                            100: '#fbf0c8',
+                            500: '#d4af37', // Luxury Gold
+                            600: '#b5952f',
+                            700: '#947a27',
+                        },
+                        slate: {
+                            850: '#151e2e',
+                            950: '#050505',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom stylesheet (Elegant Dark Theme) -->
+    <link rel="stylesheet" href="/style.css">
+    <!-- Google Fonts (Sarabun & Kanit) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="h-full flex flex-col overflow-hidden relative text-slate-200">
+
+    <div class="vignette-bg"></div>
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-black/80 backdrop-blur-md border-b border-white/5 px-4 py-3 flex items-center justify-between shadow-md shrink-0 z-20">
+        <div class="flex items-center space-x-3">
+            <div class="bg-brand-500 text-black p-2 rounded-lg font-bold flex items-center justify-center shadow-[0_0_15px_rgba(212,175,55,0.3)]">
+                <i class="fa-solid fa-music text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-semibold tracking-wide text-white flex items-center">
+                    NAMNUAH PRATY (❁´◡`❁) 
+                    <span class="text-[10px] font-normal opacity-60 ml-2 font-mono tracking-wider hidden xs:inline">NAMNUAH PARTY</span>
+                </h1>
+                <p class="text-xs text-brand-500/80">ระบบคิวเพลงและรีโมทควบคุม (Elegant Dark Theme)</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <!-- Connection status indicator -->
+            <span id="connection-badge" class="px-2 py-1 rounded text-xs bg-red-500/10 text-red-400 border border-red-500/20 flex items-center space-x-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping mr-1"></span>
+                <span>กำลังเชื่อมต่อ</span>
+            </span>
+            <!-- Connected Clients count -->
+            <span id="clients-count" class="hidden sm:inline-flex px-2.5 py-1 bg-white/5 text-slate-300 border border-white/10 rounded text-xs items-center">
+                <i class="fa-solid fa-users mr-1 text-brand-500/80"></i> <span id="clients-number" class="ml-1">0</span> 
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden z-10">
+        
+        <!-- Left Side: Player Screen (Visible when Player mode is on) -->
+        <section id="player-container" class="flex-1 bg-black flex flex-col items-center justify-center relative border-r border-white/5 overflow-hidden">
+            
+            <!-- Danmaku comment layer -->
+            <div id="danmaku-container" class="absolute inset-0 pointer-events-none z-35 overflow-hidden"></div>
+            
+            <!-- YouTube Video Element Container -->
+            <div id="video-wrapper" class="w-full h-full relative flex items-center justify-center">
+                <div id="yt-player"></div>
+                <!-- Overlay message when no video is playing -->
+                <div id="no-video-overlay" class="absolute inset-0 bg-[#050505] flex flex-col items-center justify-center text-center p-6 z-10">
+                    <div class="w-20 h-20 bg-[#0a0a0a] border border-white/5 rounded-full flex items-center justify-center text-brand-500 mb-4 shadow-[0_0_30px_rgba(212,175,55,0.15)]">
+                        <i class="fa-solid fa-play text-3xl ml-1"></i>
+                    </div>
+                    <h3 class="text-xl font-medium text-white mb-2 tracking-wide">NO VIDEO IN QUEUE</h3>
+                    <p class="text-slate-500 text-sm max-w-sm">Scan QR Code or paste a link to start playing.</p>
+                </div>
+            </div>
+            
+            <!-- Floating Player Status Overlay for host -->
+            <div class="absolute bottom-4 left-4 bg-black/70 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg text-xs flex items-center space-x-2 z-20 shadow-lg">
+                <span class="w-2 h-2 rounded-full bg-brand-500 shadow-[0_0_8px_rgba(212,175,55,0.8)]"></span>
+                <span class="text-slate-300 tracking-wide" id="player-status-text">PLAYER MODE ACTIVE</span>
+            </div>
+        </section>
+
+        <!-- Right Side: Control Dashboard -->
+        <section class="w-full md:w-[420px] bg-[#080808] flex flex-col overflow-hidden shrink-0 border-t md:border-t-0 border-white/5 relative z-10">
+            
+            <!-- Tab Options / Config -->
+            <div class="p-4 border-b border-white/5 bg-[#0a0a0a] flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-2">
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggle-player" class="sr-only peer" checked>
+                        <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-500"></div>
+                        <span class="ml-2 text-xs font-medium text-slate-400">เปิดเครื่องเล่นบนจอนี้</span>
+                    </label>
+                </div>
+                
+                <button id="show-qr-btn" class="text-xs text-brand-500 hover:text-brand-400 transition flex items-center space-x-1 bg-brand-500/10 px-2 py-1 rounded">
+                    <i class="fa-solid fa-qrcode"></i>
+                    <span>แชร์หน้าจอรีโมท</span>
+                </button>
+            </div>
+
+            <!-- Mobile Tab Headers (Shown only on Mobile/Controller screen) -->
+            <div class="flex border-b border-white/5 shrink-0 md:hidden bg-[#0a0a0a]">
+                <button id="tab-controls-btn" class="flex-1 py-3 text-center text-xs font-medium border-b-2 border-brand-500 text-brand-500 transition tracking-wide">
+                    <i class="fa-solid fa-sliders mr-1.5"></i>ควบคุม
+                </button>
+                <button id="tab-queue-btn" class="flex-1 py-3 text-center text-xs font-medium border-b-2 border-transparent text-slate-500 transition tracking-wide">
+                    <i class="fa-solid fa-list mr-1.5"></i>คิวเพลง (<span id="mobile-queue-count">0</span>)
+                </button>
+            </div>
+
+            <!-- Scrollable Control Area -->
+            <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                
+                <!-- SECTION 1: CONTROLS & INPUTS -->
+                <div id="section-controls" class="space-y-6">
+                    
+                    <!-- Quick Nickname Selection -->
+                    <div class="glass-panel p-4 rounded-xl">
+                        <label class="block text-[10px] font-semibold text-brand-500/70 uppercase tracking-widest mb-3">Nickname</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 text-sm">
+                                <i class="fa-solid fa-user text-brand-500/50"></i>
+                            </span>
+                            <input type="text" id="nickname-input" class="w-full pl-9 pr-3 py-2 bg-black/50 border border-white/10 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-brand-500/50 transition-colors" placeholder="ชื่อเล่นของคุณ...">
+                        </div>
+                    </div>
+
+                    <!-- Add YouTube URL Form -->
+                    <div class="glass-panel p-4 rounded-xl space-y-3 relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 text-brand-500/5 text-6xl pointer-events-none"><i class="fa-brands fa-youtube"></i></div>
+                        <h3 class="text-sm font-medium text-slate-200 flex items-center">
+                            เพิ่มเพลงเข้าคิว
+                        </h3>
+                        <div>
+                            <input type="text" id="video-url-input" class="w-full px-3 py-2.5 bg-black/50 border border-white/10 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-brand-500/50 transition-colors" placeholder="วางลิงก์ YouTube ที่นี่...">
+                        </div>
+                        <button id="add-to-queue-btn" class="w-full bg-brand-500 hover:bg-brand-600 text-black font-semibold py-2.5 px-4 rounded-lg text-sm transition flex items-center justify-center space-x-2">
+                            <span>SEND TO QUEUE</span>
+                            <i class="fa-solid fa-arrow-right text-xs"></i>
+                        </button>
+                    </div>
+
+                    <!-- MOOD REACTIONS BOX -->
+                    <div class="glass-panel p-4 rounded-xl space-y-4">
+                        <h3 class="text-[10px] font-semibold text-brand-500/70 uppercase tracking-widest text-center">Reactions</h3>
+                        <div class="grid grid-cols-3 gap-3">
+                            <button id="react-love-btn" class="bg-black/40 hover:bg-white/5 border border-white/5 hover:border-brand-500/30 text-white rounded-xl py-3 flex flex-col items-center justify-center transition active:scale-95 group">
+                                <span class="text-2xl group-hover:scale-110 transition-transform">😍</span>
+                                <span class="text-[10px] mt-2 text-slate-400 group-hover:text-brand-500">ชอบมาก</span>
+                            </button>
+                            <button id="react-ok-btn" class="bg-black/40 hover:bg-white/5 border border-white/5 hover:border-brand-500/30 text-white rounded-xl py-3 flex flex-col items-center justify-center transition active:scale-95 group">
+                                <span class="text-2xl group-hover:scale-110 transition-transform">👍</span>
+                                <span class="text-[10px] mt-2 text-slate-400 group-hover:text-brand-500">ด้ายยยอยู่่</span>
+                            </button>
+                            <button id="react-bad-btn" class="bg-black/40 hover:bg-white/5 border border-white/5 hover:border-brand-500/30 text-white rounded-xl py-3 flex flex-col items-center justify-center transition active:scale-95 group">
+                                <span class="text-2xl group-hover:scale-110 transition-transform opacity-80">👎</span>
+                                <span class="text-[10px] mt-2 text-slate-400 group-hover:text-brand-500">ข้ามๆๆ</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- DANMAKU COMMENTS BOX -->
+                    <div class="glass-panel p-4 rounded-xl space-y-3">
+                        <h3 class="text-[10px] font-semibold text-brand-500/70 uppercase tracking-widest">Danmaku</h3>
+                        <div class="flex space-x-2">
+                            <input type="text" id="danmaku-input" class="flex-1 px-3 py-2 bg-black/50 border border-white/10 rounded-lg text-sm text-white placeholder-slate-600 focus:outline-none focus:border-brand-500/50" placeholder="พิมพ์ข้อความวิ่งบนจอ...">
+                            <button id="danmaku-btn" class="bg-brand-500 hover:bg-brand-600 text-black px-4 rounded-lg text-sm transition flex items-center justify-center">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Playback Controllers -->
+                    <div class="glass-panel p-5 rounded-xl space-y-5">
+                        <div class="text-center">
+                            <span class="text-[9px] font-bold text-brand-500 uppercase tracking-widest border-b border-brand-500/30 pb-0.5">NOW PLAYING</span>
+                            <h4 id="current-title" class="text-sm font-medium text-white truncate mt-3">ยังไม่มีเพลงที่เล่น</h4>
+                            <p id="current-author" class="text-xs text-slate-500 truncate mt-0.5">กรุณาแอดเพลงเข้าคิว</p>
+                        </div>
+
+                        <!-- Progress Bar (interactive) -->
+                        <div class="space-y-1.5 pt-2">
+                            <div class="relative w-full h-1 bg-white/10 rounded-full cursor-pointer overflow-hidden" id="progress-bar-container">
+                                <div id="progress-bar-fill" class="absolute top-0 left-0 h-full bg-brand-500 w-0 transition-all duration-300 shadow-[0_0_10px_rgba(212,175,55,0.8)]"></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-500 font-mono tracking-wider">
+                                <span id="current-time-label">0:00</span>
+                                <span id="duration-label">0:00</span>
+                            </div>
+                        </div>
+
+                        <!-- Audio Control (Volume Adjust) -->
+                        <div class="space-y-3 pt-1">
+                            <div class="flex items-center justify-between text-xs text-slate-400">
+                                <span class="flex items-center uppercase tracking-widest text-[9px]">
+                                    <i class="fa-solid fa-volume-high mr-2 text-brand-500/70"></i> Volume: <span id="volume-label" class="ml-1 text-white font-mono">50%</span>
+                                </span>
+                            </div>
+                            <input type="range" id="volume-slider" min="0" max="100" value="50" class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer">
+                        </div>
+
+                        <!-- Media Buttons -->
+                        <div class="grid grid-cols-3 gap-3 pt-3">
+                            <!-- Play/Pause Button -->
+                            <button id="play-pause-btn" class="bg-black/50 hover:bg-white/10 border border-white/5 text-white rounded-xl py-3 flex flex-col items-center justify-center transition">
+                                <i id="play-pause-icon" class="fa-solid fa-play text-lg"></i>
+                            </button>
+                            
+                            <!-- Vote Skip Button -->
+                            <button id="vote-skip-btn" class="bg-black/50 hover:bg-white/10 border border-white/5 text-white rounded-xl py-3 flex flex-col items-center justify-center transition relative">
+                                <i class="fa-solid fa-forward-step text-lg"></i>
+                                <span class="absolute -top-1.5 -right-1.5 bg-brand-500 text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center" id="vote-skip-label">0</span>
+                            </button>
+                            
+                            <!-- Force Skip Button (Host/Admin Action) -->
+                            <button id="force-skip-btn" class="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-xl py-3 flex flex-col items-center justify-center transition">
+                                <i class="fa-solid fa-forward text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 2: QUEUE LIST -->
+                <div id="section-queue" class="space-y-4 hidden md:block">
+                    <div class="flex items-center justify-between border-b border-white/5 pb-2">
+                        <h3 class="text-xs font-medium text-slate-300 uppercase tracking-widest">
+                            <span class="text-brand-500 mr-2">●</span> Up Next
+                        </h3>
+                        <button id="clear-queue-btn" class="text-[10px] text-red-400/70 hover:text-red-400 uppercase tracking-wider transition">
+                            Clear All
+                        </button>
+                    </div>
+                    
+                    <div id="queue-list" class="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                        <!-- Queue items will be rendered here dynamically -->
+                        <div class="text-center text-xs text-slate-600 py-10 tracking-wide">
+                            QUEUE IS EMPTY
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- Remote Connection QR Modal Overlay -->
+    <div id="qr-modal" class="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-50 hidden backdrop-blur-xl">
+        <div class="glass-panel rounded-2xl p-8 w-full max-w-sm text-center relative shadow-2xl overflow-hidden border border-brand-500/20">
+            <button id="close-qr-btn" class="absolute top-4 right-4 text-slate-500 hover:text-white transition text-lg z-10">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-lg font-medium text-white mb-2 tracking-wide uppercase">Connect Remote</h3>
+            <p class="text-xs text-slate-500 mb-8">สแกนโค้ดนี้ด้วยโทรศัพท์มือถือเพื่อควบคุม</p>
+            
+            <!-- QR Code Render Div -->
+            <div class="bg-white p-4 rounded-xl inline-block mb-6 shadow-[0_0_20px_rgba(212,175,55,0.2)]">
+                <div id="qrcode" class="flex justify-center items-center"></div>
+            </div>
+
+            <!-- Server IP Address string copyable -->
+            <div class="bg-black/60 p-3 rounded-lg border border-white/5 flex items-center justify-between">
+                <span id="lan-url-text" class="text-[10px] text-brand-500 font-mono select-all tracking-wider">http://localhost:3000</span>
+                <button id="copy-url-btn" class="text-slate-500 hover:text-white transition text-xs flex items-center space-x-1">
+                    <i class="fa-regular fa-copy"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client-side Socket.io and QR code script -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <!-- Custom JS logic -->
+    <script src="/app.js"></script>
+</body>
+</html>
