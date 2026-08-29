@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAMNUAH PRATY (❁´◡`❁)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#000000',
+                        brand: {
+                            deep: '#1c2938',
+                            light: '#ABD2FA',
+                            peri: '#ABD2FA'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'Kanit', sans-serif; }
+        body { background: #000000; color: #ABD2FA; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #000000; }
+        ::-webkit-scrollbar-thumb { background: #1c2938; border-radius: 3px; }
+
+        input[type="range"] { -webkit-appearance: none; background: #1c2938; height: 6px; border-radius: 3px; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #ABD2FA; cursor: pointer; border: 2px solid #000000;
+        }
+
+        /* Intro Animation */
+        #intro-overlay {
+            animation: intro-fade 3.5s ease-in-out forwards;
+        }
+        @keyframes intro-fade {
+            0% { opacity: 1; pointer-events: auto; }
+            80% { opacity: 1; pointer-events: auto; }
+            100% { opacity: 0; pointer-events: none; visibility: hidden; }
+        }
+        .intro-text {
+            background: linear-gradient(to right, #ABD2FA, #ffffff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: text-blur 3s ease-in-out forwards;
+        }
+        @keyframes text-blur {
+            0% { filter: blur(10px); opacity: 0; transform: scale(0.9); }
+            20% { filter: blur(0); opacity: 1; transform: scale(1); }
+            80% { filter: blur(0); opacity: 1; transform: scale(1); }
+            100% { filter: blur(10px); opacity: 0; transform: scale(1.1); }
+        }
+
+        /* Danmaku */
+        .danmaku-text {
+            position: absolute; white-space: nowrap; font-weight: 600; font-size: 2.4rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7), 0 0 1px #000;
+            pointer-events: none; z-index: 40;
+            left: 100%; transform: translateX(0);
+            animation: danmaku-slide linear forwards;
+        }
+        @keyframes danmaku-slide {
+            to { left: 0; transform: translateX(-100%); }
+        }
+
+        /* Floating reaction */
+        .float-emoji {
+            position: absolute; font-size: 2.5rem; pointer-events: none; z-index: 45;
+            animation: emoji-rise 2.5s ease-out forwards;
+        }
+        @keyframes emoji-rise {
+            0% { opacity: 0; transform: translateY(0) scale(0.5); }
+            20% { opacity: 1; transform: translateY(-60px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-400px) scale(0.6); }
+        }
+
+        .btn-glow:hover { box-shadow: 0 0 15px rgba(118,146,255,0.4); }
+
+        #player-area:fullscreen, #player-area:-webkit-full-screen { width: 100vw; height: 100vh; background: #000; }
+        #player-area:fullscreen #danmaku-layer, #player-area:-webkit-full-screen #danmaku-layer { z-index: 2147483647; }
+        #player-area:fullscreen .float-emoji, #player-area:-webkit-full-screen .float-emoji { z-index: 2147483646; }
+        #player-area:fullscreen #fs-btn, #player-area:-webkit-full-screen #fs-btn { z-index: 2147483647; }
+        #player-area:fullscreen #qr-container, #player-area:-webkit-full-screen #qr-container { z-index: 2147483647; }
+        #player-area:fullscreen .danmaku-text, #player-area:-webkit-full-screen .danmaku-text { font-size: 3.4rem; }
+        
+        @media (max-width: 767px) {
+            body.client-mode #player-area { display: none !important; }
+        }
+        body.web-fullscreen header { display: none !important; }
+    </style>
+</head>
+<body class="h-[100dvh] flex flex-col overflow-hidden bg-primary text-brand-light">
+
+    <!-- Intro Overlay -->
+    <div id="intro-overlay" class="fixed inset-0 bg-primary z-[100] flex flex-col items-center justify-center">
+        <h1 class="text-5xl md:text-7xl font-bold intro-text tracking-widest">สวัสดี</h1>
+        <p class="mt-4 text-sm text-brand-light/70 tracking-widest intro-text" style="animation-delay: 0.3s">สร้างโดย NAMNUAH</p>
+    </div>
+
+    <!-- Login/Profile Overlay -->
+    <div id="login-overlay" class="fixed inset-0 bg-primary/95 backdrop-blur z-[60] flex items-center justify-center hidden">
+        <div class="bg-[#0a0a0a] border border-brand-peri/30 rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl shadow-brand-deep/20">
+            <h3 class="text-xl font-semibold text-brand-peri mb-1">ยินดีต้อนรับ</h3>
+            <p class="text-[11px] text-brand-light/70 mb-4">กรุณาตั้งชื่อและเลือกสีประจำตัว</p>
+            
+            <div class="mb-4">
+                <input id="login-name" type="text" placeholder="ชื่อเล่นของคุณ..." class="w-full bg-primary border border-brand-deep/50 rounded-lg px-3 py-2 text-sm text-brand-light placeholder-brand-light/40 focus:outline-none focus:border-brand-peri">
+            </div>
+            
+            <div class="mb-5 flex justify-center items-center gap-3">
+                <label class="text-[11px] text-brand-light/80">สีข้อความ:</label>
+                <input id="login-color" type="color" value="#ABD2FA" class="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0">
+            </div>
+            
+            <button id="login-btn" class="w-full bg-gradient-to-r from-brand-deep to-brand-peri hover:from-brand-peri hover:to-brand-deep text-white font-semibold py-2 rounded-lg text-sm transition btn-glow">
+                เข้าสู่ระบบ
+            </button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-[#0a0a0a] border-b border-brand-deep/30 px-4 py-2.5 flex items-center justify-between shrink-0 z-30">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-brand-deep/20 border border-brand-peri/30 rounded-lg flex items-center justify-center">
+                <i class="fa-solid fa-music text-brand-peri"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-semibold text-brand-light leading-tight">NAMNUAH PRATY <span class="text-brand-peri">(❁´◡`❁)</span></h1>
+                <p class="text-sm text-brand-light/80">ระบบคิวเพลง ควบคุมผ่านมือถือได้</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="status-badge" class="text-[11px] px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30">
+                ● กำลังเชื่อมต่อ
+            </span>
+            <span id="online-count" class="text-[11px] px-2 py-1 rounded bg-[#0a0a0a] text-brand-peri border border-brand-deep/50 hidden sm:inline-flex items-center gap-1">
+                <i class="fa-solid fa-users text-[9px]"></i> <span id="online-num">0</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+
+        <!-- Video Player Area -->
+        <section id="player-area" class="h-[28vh] md:h-auto md:w-[75%] md:flex-none bg-primary relative flex items-center justify-center overflow-hidden shrink-0">
+            <!-- Danmaku layer -->
+            <div id="danmaku-layer" class="absolute inset-0 pointer-events-none overflow-hidden z-30"></div>
+            
+            <!-- YT Player -->
+            <div id="yt-player" class="w-full h-full"></div>
+            
+            <!-- Empty state -->
+            <div id="empty-state" class="absolute inset-0 bg-[#050505] flex flex-col items-center justify-center z-10">
+                <div class="w-16 h-16 rounded-full bg-[#0a0a0a] border border-brand-deep/50 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-play text-brand-peri text-2xl ml-1"></i>
+                </div>
+                <p class="text-brand-light/70 text-sm">ยังไม่มีเพลงในคิว</p>
+                <p class="text-brand-light/40 text-xs mt-1">วางลิงก์ YouTube เพื่อเริ่มเล่น</p>
+            </div>
+
+            <!-- Fullscreen / Theater Buttons -->
+            <div class="absolute bottom-3 right-3 z-40 flex gap-2">
+                <button id="theater-btn" class="bg-[#0a0a0a]/80 backdrop-blur hover:bg-brand-deep/50 px-2.5 py-1.5 rounded text-brand-light/80 text-xs border border-brand-deep/50 transition" title="เต็มจอเว็บ (Theater Mode)">
+                    <i class="fa-solid fa-square"></i>
+                </button>
+                <button id="fs-btn" class="bg-[#0a0a0a]/80 backdrop-blur hover:bg-brand-deep/50 px-2.5 py-1.5 rounded text-brand-light/80 text-xs border border-brand-deep/50 transition" title="เต็มจอคอม (Fullscreen)">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
+            </div>
+
+
+            <!-- Player status badge -->
+            <div id="host-badge" class="absolute bottom-3 left-3 bg-[#0a0a0a]/80 backdrop-blur px-2.5 py-1 rounded text-[10px] text-brand-peri border border-brand-deep/50 z-20 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-brand-peri"></span> HOST MODE
+            </div>
+        </section>
+
+        <!-- Right Panel (25% on desktop) -->
+        <aside class="relative w-full md:w-[25%] flex-1 min-h-0 bg-[#050505] flex flex-col overflow-hidden shrink-0 border-l border-brand-deep/30">
+            
+            <!-- QR Code (Host Mode Only, Bottom Right) -->
+            <div id="qr-container" class="absolute bottom-3 right-3 bg-white p-2 rounded-lg z-40 hidden shadow-xl shadow-black/50 border-2 border-brand-peri">
+                <div id="qrcode"></div>
+                <div class="text-[9px] text-center text-primary mt-1 font-bold select-all" id="url-display"></div>
+            </div>
+            
+            <!-- Mode Toggle -->
+            <div class="p-3 border-b border-brand-deep/30 flex items-center justify-between shrink-0">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="toggle-host" checked class="sr-only peer">
+                    <div class="w-8 h-[18px] bg-[#0a0a0a] border border-brand-deep/50 rounded-full peer-checked:bg-brand-peri relative after:content-[''] after:absolute after:top-[1px] after:left-[2px] after:w-[14px] after:h-[14px] after:bg-white after:rounded-full after:transition-all peer-checked:after:translate-x-[12px]"></div>
+                    <span class="text-[11px] text-brand-light/70">Host Mode</span>
+                </label>
+                <div class="flex items-center gap-2">
+                    <div id="my-color-dot" class="w-3 h-3 rounded-full bg-brand-peri border border-white/20"></div>
+                    <button id="edit-profile-btn" class="text-[10px] text-brand-peri hover:text-brand-light transition">แก้ไขโปรไฟล์</button>
+                </div>
+            </div>
+
+            <!-- Mobile Tabs -->
+            <div class="flex border-b border-brand-deep/30 md:hidden shrink-0">
+                <button id="tab-ctrl" class="flex-1 py-2.5 text-xs font-medium text-brand-peri border-b-2 border-brand-peri">
+                    <i class="fa-solid fa-sliders mr-1"></i>ควบคุม
+                </button>
+                <button id="tab-queue" class="flex-1 py-2.5 text-xs font-medium text-brand-light/50 border-b-2 border-transparent">
+                    <i class="fa-solid fa-list mr-1"></i>คิว (<span id="q-count-mobile">0</span>)
+                </button>
+            </div>
+
+            <!-- Scrollable content -->
+            <div class="flex-1 overflow-y-auto p-3 space-y-4 pb-6">
+
+                <!-- Controls Section -->
+                <div id="sec-ctrl" class="space-y-3">
+
+                    <!-- Now Playing + Controls -->
+                    <div class="bg-[#0a0a0a]/50 border border-brand-deep/30 rounded-xl p-3 space-y-3 shadow-inner">
+                        <div class="text-center">
+                            <span class="text-[9px] text-brand-peri uppercase tracking-widest">กำลังเล่น</span>
+                            <h4 id="now-title" class="text-sm font-medium text-white truncate">ยังไม่มีเพลง</h4>
+                            <p id="now-author" class="text-sm text-brand-light/80 truncate">—</p>
+                        </div>
+
+                        <!-- Progress -->
+                        <div>
+                            <div id="progress-bar" class="w-full h-1.5 bg-primary border border-brand-deep/30 rounded-full cursor-pointer overflow-hidden">
+                                <div id="progress-fill" class="h-full bg-brand-peri rounded-full transition-all duration-300" style="width:0%"></div>
+                            </div>
+                            <div class="flex justify-between text-[9px] text-brand-light/50 mt-1 font-mono">
+                                <span id="time-now">0:00</span>
+                                <span id="time-total">0:00</span>
+                            </div>
+                        </div>
+
+                        <!-- Volume -->
+                        <div class="flex items-center gap-2">
+                            <button id="vol-down" class="w-6 h-6 bg-[#0a0a0a] hover:bg-brand-deep/50 border border-brand-deep/30 rounded flex items-center justify-center text-brand-light/70 text-[10px] transition">
+                                <i class="fa-solid fa-volume-low"></i>
+                            </button>
+                            <input id="vol-slider" type="range" min="0" max="100" value="50" class="flex-1">
+                            <button id="vol-up" class="w-6 h-6 bg-[#0a0a0a] hover:bg-brand-deep/50 border border-brand-deep/30 rounded flex items-center justify-center text-brand-light/70 text-[10px] transition">
+                                <i class="fa-solid fa-volume-high"></i>
+                            </button>
+                            <span id="vol-label" class="text-[10px] text-brand-peri w-8 text-right font-mono">50%</span>
+                        </div>
+
+                        <!-- Play / Skip -->
+                        <div class="flex gap-2">
+                            <button id="btn-play" class="flex-1 bg-[#0a0a0a] hover:bg-brand-deep/40 border border-brand-deep/40 text-white rounded-lg py-2 flex flex-col items-center transition">
+                                <i id="icon-play" class="fa-solid fa-play text-lg text-brand-peri"></i>
+                            </button>
+                            <!-- Replaced Vote Skip with 3-click Skip -->
+                            <button id="btn-skip" class="flex-1 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 text-red-400 rounded-lg py-2 flex flex-col items-center transition relative overflow-hidden">
+                                <i class="fa-solid fa-forward text-lg"></i>
+                                <span id="skip-label" class="text-[9px] mt-0.5">ข้ามเลย</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Add URL (Available to everyone) -->
+                    <div class="bg-[#0a0a0a]/50 border border-brand-deep/30 rounded-xl p-3 space-y-2">
+                        <label class="text-[10px] text-brand-light/70 uppercase tracking-wider block mb-0.5">เพิ่มเพลงเข้าคิว</label>
+                        <div class="flex gap-2">
+                            <input id="url-input" type="text" placeholder="วางลิงก์ YouTube..." class="flex-1 bg-primary border border-brand-deep/40 rounded-lg px-2 py-1.5 text-xs text-brand-light placeholder-brand-light/30 focus:outline-none focus:border-brand-peri">
+                            <button id="add-btn" class="bg-brand-peri hover:bg-brand-light text-primary font-semibold px-3 rounded-lg text-sm transition btn-glow">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Client Mode Only: Reactions & Danmaku -->
+                    <div id="client-controls" class="space-y-3">
+                        <div class="bg-[#0a0a0a]/50 border border-brand-deep/30 rounded-xl p-3 space-y-2">
+                            <label class="text-[10px] text-brand-light/70 uppercase tracking-wider block text-center">แสดงอารมณ์</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button id="react-love" class="bg-[#0a0a0a] hover:bg-brand-deep/30 border border-brand-deep/20 rounded-lg py-1.5 flex flex-col items-center gap-0.5 transition active:scale-95">
+                                    <span class="text-lg">😍</span>
+                                    <span class="text-[8px] text-brand-light/60">ชอบมาก!!!</span>
+                                </button>
+                                <button id="react-ok" class="bg-[#0a0a0a] hover:bg-brand-deep/30 border border-brand-deep/20 rounded-lg py-1.5 flex flex-col items-center gap-0.5 transition active:scale-95">
+                                    <span class="text-lg">👍</span>
+                                    <span class="text-[8px] text-brand-light/60">ด้ายยยอยู่่</span>
+                                </button>
+                                <button id="react-bad" class="bg-[#0a0a0a] hover:bg-brand-deep/30 border border-brand-deep/20 rounded-lg py-1.5 flex flex-col items-center gap-0.5 transition active:scale-95">
+                                    <span class="text-lg">👎</span>
+                                    <span class="text-[8px] text-brand-light/60">ข้ามๆๆ บ่ผ่าน</span>
+                                </button>
+                            </div>
+                            
+                            <div class="pt-2 border-t border-brand-deep/20">
+                                <label class="text-[10px] text-brand-light/70 uppercase tracking-wider block mb-1">ข้อความวิ่งหน้าจอ</label>
+                                <div class="flex flex-col gap-2">
+                                    <div class="flex gap-2">
+                                        <input id="msg-input" type="text" placeholder="พิมพ์ข้อความวิ่ง..." class="flex-1 bg-primary border border-brand-deep/40 rounded-lg px-2 py-1.5 text-xs text-brand-light placeholder-brand-light/30 focus:outline-none focus:border-brand-peri">
+                                        <button id="msg-btn" class="bg-brand-peri hover:bg-brand-light text-primary px-3 rounded-lg text-sm font-semibold transition btn-glow">
+                                            <i class="fa-solid fa-paper-plane"></i>
+                                        </button>
+                                    </div>
+                                    <label class="flex items-center gap-1.5 cursor-pointer">
+                                        <input type="checkbox" id="tts-toggle" class="rounded border-brand-deep/50 bg-primary text-brand-peri focus:ring-brand-peri">
+                                        <span class="text-[10px] text-brand-light/60"><i class="fa-solid fa-volume-high mr-1 text-brand-peri"></i>ให้ระบบอ่านข้อความ (TTS)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div> <!-- End sec-ctrl -->
+
+                <!-- Queue Section -->
+                <div id="sec-queue" class="hidden md:block space-y-2">
+                    <div class="flex items-center justify-between px-1">
+                        <h3 class="text-[11px] text-brand-peri uppercase tracking-wider font-semibold"><i class="fa-solid fa-list mr-1"></i> คิวถัดไป (<span id="q-count">0</span>)</h3>
+                        <button id="clear-btn" class="text-[10px] text-red-400/70 hover:text-red-400 transition">ล้างคิว</button>
+                    </div>
+                    <div id="queue-list" class="space-y-1.5 max-h-[250px] overflow-y-auto pr-1">
+                        <p class="text-center text-[10px] text-brand-light/30 py-4">คิวว่างเปล่า</p>
+                    </div>
+                </div>
+
+                <!-- Online Users Section -->
+                <div id="sec-users" class="hidden md:block space-y-2 pt-2 border-t border-brand-deep/30">
+                    <div class="px-1">
+                        <h3 class="text-[11px] text-brand-peri uppercase tracking-wider font-semibold"><i class="fa-solid fa-users mr-1"></i> ผู้ใช้งานออนไลน์</h3>
+                    </div>
+                    <div id="users-list" class="flex flex-wrap gap-1.5 max-h-[150px] overflow-y-auto pr-1">
+                        <!-- Users will be injected here -->
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>
