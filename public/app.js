@@ -194,7 +194,8 @@ function updateUIMode() {
     if (hostMode) {
         // Host
         document.body.classList.remove('client-mode');
-        hostBadge.classList.remove('hidden');
+        hostBadge.classList.add('hidden');
+        clientControls.classList.add('hidden');
         qrContainer.classList.remove('hidden');
         secUsers.style.display = 'none';
         if (!window.YT) initYouTubeAPI();
