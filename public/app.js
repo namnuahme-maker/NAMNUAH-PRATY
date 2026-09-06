@@ -1,5 +1,13 @@
 const socket = io();
 
+// HTML escape helper to prevent XSS
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
 // State
 let state = {
     queue: [],
@@ -169,10 +177,14 @@ function onPlayerStateChange(event) {
 // Host syncs time to server
 setInterval(() => {
     if (hostMode && playerReady && ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+        const currentTime = ytPlayer.getCurrentTime();
+        const duration = ytPlayer.getDuration();
         socket.emit('player-progress', {
-            currentTime: ytPlayer.getCurrentTime(),
-            duration: ytPlayer.getDuration()
+            currentTime: currentTime,
+            duration: duration
         });
+        // Also update host's own progress bar
+        updateProgress(currentTime, duration);
     }
 }, 1000);
 
@@ -183,7 +195,6 @@ function updateUIMode() {
         // Host
         document.body.classList.remove('client-mode');
         hostBadge.classList.remove('hidden');
-        clientControls.classList.add('hidden');
         qrContainer.classList.remove('hidden');
         secUsers.style.display = 'none';
         if (!window.YT) initYouTubeAPI();
@@ -247,10 +258,10 @@ function renderState() {
             <div class="flex items-center gap-2 p-2 bg-[#0a0a0a] rounded-lg border border-brand-deep/20 group">
                 <span class="text-[10px] text-brand-light/50 w-4 text-center font-mono">${index + 1}</span>
                 <div class="flex-1 min-w-0">
-                    <p class="text-xs text-white truncate">${item.title}</p>
-                    <p class="text-[9px] text-brand-light/50 truncate">เพิ่มโดย: <span style="color:${item.color || '#ABD2FA'}">${item.addedBy}</span></p>
+                    <p class="text-xs text-white truncate">${escapeHtml(item.title)}</p>
+                    <p class="text-[9px] text-brand-light/50 truncate">เพิ่มโดย: <span style="color:${escapeHtml(item.color) || '#ABD2FA'}">${escapeHtml(item.addedBy)}</span></p>
                 </div>
-                <button onclick="socket.emit('remove-from-queue', '${item.id}')" class="w-6 h-6 rounded bg-red-900/20 text-red-400 hover:bg-red-500 hover:text-white transition opacity-0 group-hover:opacity-100 flex items-center justify-center">
+                <button onclick="socket.emit('remove-from-queue', '${escapeHtml(item.id)}')" class="w-6 h-6 rounded bg-red-900/20 text-red-400 hover:bg-red-500 hover:text-white transition opacity-0 group-hover:opacity-100 flex items-center justify-center">
                     <i class="fa-solid fa-trash text-[10px]"></i>
                 </button>
             </div>
@@ -347,7 +358,7 @@ btnPlay.addEventListener('click', () => {
 });
 
 volSlider.addEventListener('input', e => {
-    socket.emit('volume-control', e.target.value);
+    socket.emit('volume-control', parseInt(e.target.value));
 });
 
 volDown.addEventListener('click', () => socket.emit('volume-control', Math.max(0, state.volume - 10)));
@@ -396,8 +407,11 @@ socket.on('init', (data) => {
     // Generate QR
     qrContainer.innerHTML = '<div id="qrcode"></div><div class="text-[9px] text-center text-primary mt-1 font-bold select-all" id="url-display"></div>';
     
-    // Use the actual public URL the browser is connected to, instead of the server's internal local IP.
-    const link = window.location.origin;
+    // Use LAN IP so mobile phones can scan and access via Wi-Fi
+    let link = window.location.origin;
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        link = `http://${data.localIp}:${data.port}`;
+    }
     
     new QRCode(document.getElementById("qrcode"), {
         text: link,
@@ -439,6 +453,14 @@ function updateUsersList(users) {
     const keys = Object.keys(users);
     onlineNum.textContent = keys.length;
     
+    // Show/hide online count badge
+    const onlineCount = $('online-count');
+    if (keys.length > 0) {
+        onlineCount.classList.remove('hidden');
+    } else {
+        onlineCount.classList.add('hidden');
+    }
+    
     if (keys.length === 0) {
         usersList.innerHTML = `<p class="text-[9px] text-brand-light/30 py-2">ไม่มีผู้ใช้</p>`;
         return;
@@ -447,15 +469,14 @@ function updateUsersList(users) {
     usersList.innerHTML = keys.map(id => {
         const u = users[id];
         return `<div class="bg-[#0a0a0a] border border-brand-deep/30 rounded px-2 py-1 text-[10px] flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${u.color || '#7692FF'}"></span>
-            <span style="color: ${u.color || '#ABD2FA'}">${u.name || 'Anonymous'}</span>
+            <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${escapeHtml(u.color) || '#7692FF'}"></span>
+            <span style="color: ${escapeHtml(u.color) || '#ABD2FA'}">${escapeHtml(u.name) || 'Anonymous'}</span>
         </div>`;
     }).join('');
 }
 
 // Visuals
 socket.on('new-reaction', emoji => {
-    if (!hostMode) return;
     const el = document.createElement('div');
     el.className = 'float-emoji';
     el.textContent = emoji;
@@ -466,7 +487,6 @@ socket.on('new-reaction', emoji => {
 });
 
 socket.on('new-danmaku', data => {
-    if (!hostMode) return;
 
     // TTS
     if (data.tts && 'speechSynthesis' in window) {
@@ -481,7 +501,7 @@ socket.on('new-danmaku', data => {
     // Visual text
     const el = document.createElement('div');
     el.className = 'danmaku-text';
-    el.innerHTML = `<span style="color: ${data.color || '#fff'}">${data.nickname || ''}:</span> ${data.text}`;
+    el.innerHTML = `<span style="color: ${escapeHtml(data.color) || '#fff'}">${escapeHtml(data.nickname) || ''}:</span> ${escapeHtml(data.text)}`;
     el.style.top = (Math.random() * 60 + 10) + '%';
     el.style.animationDuration = (Math.random() * 4 + 7) + 's';
     danmakuLayer.appendChild(el);
@@ -489,6 +509,19 @@ socket.on('new-danmaku', data => {
 });
 
 socket.on('error-msg', msg => alert(msg));
+
+// --- Connection Status Badge ---
+const statusBadge = $('status-badge');
+
+socket.on('connect', () => {
+    statusBadge.innerHTML = '● เชื่อมต่อแล้ว';
+    statusBadge.className = 'text-[11px] px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/30';
+});
+
+socket.on('disconnect', () => {
+    statusBadge.innerHTML = '● ขาดการเชื่อมต่อ';
+    statusBadge.className = 'text-[11px] px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30';
+});
 
 
 // --- Mobile Tabs ---
