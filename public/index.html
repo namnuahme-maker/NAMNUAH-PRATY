@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NAMNUAH PRATY (❁´◡`❁)</title>
+    <title>NAMNUAH PARTY (❁´◡`❁)</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="192x192" href="/PNRJAPANLOGO.png">
     <link rel="apple-touch-icon" href="/PNRJAPANLOGO.png">
@@ -137,7 +137,7 @@
                 <img src="/PNRJAPANLOGO.png" alt="Logo" class="w-9 h-9 object-cover rounded-lg">
             </div>
             <div>
-                <h1 class="text-base font-semibold text-brand-light leading-tight">NAMNUAH PRATY <span class="text-brand-peri">(❁´◡`❁)</span></h1>
+                <h1 class="text-base font-semibold text-brand-light leading-tight">NAMNUAH PARTY <span class="text-brand-peri">(❁´◡`❁)</span></h1>
                 <p class="text-sm text-brand-light/80">ระบบคิวเพลง ควบคุมผ่านมือถือได้</p>
             </div>
         </div>
@@ -161,6 +161,28 @@
             
             <!-- YT Player -->
             <div id="yt-player" class="w-full h-full"></div>
+
+            <!-- Audio Mode Visualizer / Cover Art Layer -->
+            <div id="audio-player-layer" class="absolute inset-0 bg-[#070b11] flex flex-col items-center justify-center z-15 hidden p-6 text-center">
+                <div class="relative w-40 h-40 md:w-52 md:h-52 rounded-2xl overflow-hidden shadow-2xl shadow-brand-peri/30 border-2 border-brand-peri/50 mb-4 group">
+                    <img id="audio-cover-img" src="" alt="Cover" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent flex items-end p-2.5 justify-center">
+                        <span class="text-[10px] text-brand-peri tracking-widest font-bold uppercase flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-brand-peri animate-ping"></span> AUDIO STREAM MODE
+                        </span>
+                    </div>
+                </div>
+                <h3 id="audio-title" class="text-base md:text-lg font-semibold text-white max-w-md truncate mb-1"></h3>
+                <p id="audio-author" class="text-xs text-brand-light/70 mb-3"></p>
+                <div class="flex items-center gap-2">
+                    <span class="px-3 py-1 rounded-full bg-brand-deep/80 border border-brand-peri/30 text-[10px] text-brand-peri">
+                        <i class="fa-solid fa-headphones mr-1"></i> ดึงเสียงตรงจากหลังบ้าน (เล่นได้ 100%)
+                    </span>
+                </div>
+            </div>
+
+            <!-- Native HTML5 Audio for Backend Streaming -->
+            <audio id="native-audio" class="hidden"></audio>
             
             <!-- Empty state -->
             <div id="empty-state" class="absolute inset-0 bg-[#050505] flex flex-col items-center justify-center z-10">
@@ -171,8 +193,11 @@
                 <p class="text-brand-light/40 text-xs mt-1">วางลิงก์ YouTube เพื่อเริ่มเล่น</p>
             </div>
 
-            <!-- Fullscreen / Theater Buttons -->
-            <div class="absolute bottom-3 right-3 z-40 flex gap-2">
+            <!-- Quality Badge & Fullscreen / Theater Buttons -->
+            <div class="absolute bottom-3 right-3 z-40 flex items-center gap-1.5">
+                <span id="player-quality-badge" class="bg-[#0a0a0a]/80 backdrop-blur px-2 py-1 rounded text-brand-peri font-mono font-bold text-[10px] border border-brand-deep/50 tracking-wider">
+                    HD
+                </span>
                 <button id="theater-btn" class="bg-[#0a0a0a]/80 backdrop-blur hover:bg-brand-deep/50 px-2.5 py-1.5 rounded text-brand-light/80 text-xs border border-brand-deep/50 transition" title="เต็มจอเว็บ (Theater Mode)">
                     <i class="fa-solid fa-square"></i>
                 </button>
@@ -186,6 +211,11 @@
             <div id="host-badge" class="absolute bottom-3 left-3 bg-[#0a0a0a]/80 backdrop-blur px-2.5 py-1 rounded text-[10px] text-brand-peri border border-brand-deep/50 z-20 flex items-center gap-1.5">
                 <span class="w-1.5 h-1.5 rounded-full bg-brand-peri"></span> HOST MODE
             </div>
+
+            <!-- Autoplay Unmute helper button -->
+            <button id="unmute-btn" class="hidden absolute top-3 left-3 z-40 bg-brand-peri hover:bg-brand-light text-primary px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg shadow-brand-peri/30 transition flex items-center gap-1.5 animate-pulse">
+                <i class="fa-solid fa-volume-high"></i> แตะเพื่อเปิดเสียง
+            </button>
         </section>
 
         <!-- Right Panel (25% on desktop) -->
@@ -268,6 +298,21 @@
                                 <span id="skip-label" class="text-[9px] mt-0.5">ข้ามเลย</span>
                             </button>
                         </div>
+
+                        <!-- Quality Selector -->
+                        <div class="pt-2 border-t border-brand-deep/30 flex items-center justify-between">
+                            <label class="text-[10px] text-brand-light/70 uppercase tracking-wider flex items-center gap-1">
+                                <i class="fa-solid fa-gauge-high text-brand-peri"></i> ความคมชัด
+                            </label>
+                            <select id="quality-select" class="bg-primary border border-brand-deep/50 text-brand-peri text-[10px] rounded px-2 py-1 focus:outline-none focus:border-brand-peri cursor-pointer font-medium">
+                                <option value="max" selected>⚡ บังคับชัดสุด (1080p+)</option>
+                                <option value="hd1080">1080p Full HD</option>
+                                <option value="hd720">720p HD</option>
+                                <option value="large">480p</option>
+                                <option value="medium">360p (เน็ตช้า)</option>
+                                <option value="auto">Auto (อัตโนมัติ)</option>
+                            </select>
+                        </div>
                     </div>
 
                     <!-- Add URL (Available to everyone) -->
@@ -344,6 +389,11 @@
             </div>
         </aside>
     </main>
+
+
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[999] flex flex-col gap-2 pointer-events-none"></div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>

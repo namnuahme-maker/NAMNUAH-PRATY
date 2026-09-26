@@ -8,6 +8,33 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+function safeColor(c) {
+    return /^#[0-9A-Fa-f]{6}$/.test(c) ? c : '#ABD2FA';
+}
+
+// Toast notification helper
+function showToast(msg, type = 'info') {
+    const container = $('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    const borderCol = type === 'error' 
+        ? 'border-red-500/50 bg-red-950/90 text-red-200 shadow-red-500/20' 
+        : 'border-brand-peri/50 bg-[#0a0a0a]/90 text-brand-light shadow-brand-deep/30';
+    toast.className = `px-3.5 py-2 rounded-lg border text-xs shadow-xl backdrop-blur transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto flex items-center gap-2 ${borderCol}`;
+    
+    const icon = type === 'error' ? '<i class="fa-solid fa-circle-exclamation text-red-400"></i>' : '<i class="fa-solid fa-circle-info text-brand-peri"></i>';
+    toast.innerHTML = `${icon} <span>${escapeHtml(msg)}</span>`;
+    
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+    }, 10);
+    setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+    }, 3500);
+}
+
 // State
 let state = {
     queue: [],
@@ -15,13 +42,14 @@ let state = {
     isPlaying: false,
     currentTime: 0,
     duration: 0,
-    volume: 50
+    volume: 50,
+    quality: 'max'
 };
 
 // Profile
 let myProfile = {
     name: localStorage.getItem('nickname') || '',
-    color: localStorage.getItem('usercolor') || '#ABD2FA'
+    color: safeColor(localStorage.getItem('usercolor'))
 };
 
 // DOM Refs
@@ -30,8 +58,11 @@ const playerArea = $('player-area');
 const ytPlayerDiv = $('yt-player');
 const emptyState = $('empty-state');
 const hostBadge = $('host-badge');
+const unmuteBtn = $('unmute-btn');
 const danmakuLayer = $('danmaku-layer');
 const qrContainer = $('qr-container');
+const playerQualityBadge = $('player-quality-badge');
+const qualitySelect = $('quality-select');
 
 // Overlays
 const loginOverlay = $('login-overlay');
@@ -90,16 +121,14 @@ let hostMode = localStorage.getItem('host') !== null ? localStorage.getItem('hos
 toggleHost.checked = hostMode;
 
 // --- Intro Animation ---
-// Handled completely by CSS animations on #intro-overlay. It disappears after 3.5s.
 setTimeout(() => {
-    // Show login if no profile
     if (!myProfile.name) {
         showLogin();
     } else {
         updateProfileUI();
         socket.emit('set-profile', myProfile);
     }
-}, 3500); // Wait for intro to finish
+}, 3500);
 
 // --- Profile / Login ---
 function showLogin() {
@@ -109,11 +138,11 @@ function showLogin() {
 }
 
 loginBtn.addEventListener('click', () => {
-    const name = loginName.value.trim();
-    if (!name) return alert('กรุณาใส่ชื่อเล่น');
+    const name = loginName.value.trim().substring(0, 25);
+    if (!name) return showToast('กรุณาใส่ชื่อเล่น', 'error');
     
     myProfile.name = name;
-    myProfile.color = loginColor.value;
+    myProfile.color = safeColor(loginColor.value);
     
     localStorage.setItem('nickname', myProfile.name);
     localStorage.setItem('usercolor', myProfile.color);
@@ -129,7 +158,7 @@ function updateProfileUI() {
     myColorDot.style.backgroundColor = myProfile.color;
 }
 
-// --- YouTube API ---
+// --- YouTube API (youtube-nocookie.com) ---
 let ytPlayer = null;
 let playerReady = false;
 
@@ -146,19 +175,21 @@ window.onYouTubeIframeAPIReady = function() {
     ytPlayer = new YT.Player('yt-player', {
         height: '100%',
         width: '100%',
+        host: 'https://www.youtube-nocookie.com',
         playerVars: {
             'autoplay': 1,
-            'controls': 0, // hide native controls
+            'controls': 0,
             'disablekb': 1,
-            'fs': 0,       // disable native fullscreen (we use our own)
+            'fs': 0,
             'rel': 0,
             'modestbranding': 1,
-            'playsinline': 1, // Fix for mobile playback
-            'origin': window.location.origin
+            'playsinline': 1,
+            'enablejsapi': 1
         },
         events: {
             'onReady': onPlayerReady,
-            'onStateChange': onPlayerStateChange
+            'onStateChange': onPlayerStateChange,
+            'onError': onPlayerError
         }
     });
 };
@@ -168,13 +199,70 @@ function onPlayerReady(event) {
     applyHostModeState();
 }
 
+function onPlayerError(event) {
+    console.error('YouTube Player Error:', event.data);
+    showToast('คลิปนี้ปิดการฝังวิดีโอ ระบบกำลังสลับไปเล่นเวอร์ชันสำรองให้อัตโนมัติ...', 'info');
+    // Automatically find alternative version without interrupting users
+    socket.emit('resolve-error-action', 'find-alt');
+}
+
+function enforceQuality() {
+    if (!hostMode || !ytPlayer || !ytPlayer.getAvailableQualityLevels || !ytPlayer.setPlaybackQuality) return;
+    const target = state.quality || 'max';
+    const available = ytPlayer.getAvailableQualityLevels();
+    
+    let selectedQuality = target;
+    if (target === 'max') {
+        const priority = ['highres', 'hd2160', 'hd1440', 'hd1080', 'hd720', 'large', 'medium'];
+        selectedQuality = priority.find(q => available.includes(q)) || available[0] || 'hd1080';
+    }
+
+    if (selectedQuality && selectedQuality !== 'auto') {
+        ytPlayer.setPlaybackQuality(selectedQuality);
+    } else {
+        ytPlayer.setPlaybackQuality('auto');
+    }
+    updateQualityBadge(selectedQuality);
+}
+
+function updateQualityBadge(q) {
+    if (!playerQualityBadge) return;
+    if (q === 'highres' || q === 'hd2160') playerQualityBadge.textContent = '4K';
+    else if (q === 'hd1440') playerQualityBadge.textContent = '2K';
+    else if (q === 'hd1080') playerQualityBadge.textContent = '1080p';
+    else if (q === 'hd720') playerQualityBadge.textContent = '720p';
+    else if (q === 'large') playerQualityBadge.textContent = '480p';
+    else if (q === 'medium') playerQualityBadge.textContent = '360p';
+    else playerQualityBadge.textContent = 'HD';
+}
+
 function onPlayerStateChange(event) {
+    if (event.data === YT.PlayerState.PLAYING) {
+        enforceQuality();
+        setTimeout(enforceQuality, 1200);
+    }
     if (event.data === YT.PlayerState.ENDED) {
         socket.emit('player-video-ended');
     }
+    // Check if autoplay muted it
+    if (ytPlayer && ytPlayer.isMuted && ytPlayer.isMuted() && unmuteBtn) {
+        unmuteBtn.classList.remove('hidden');
+    } else if (unmuteBtn) {
+        unmuteBtn.classList.add('hidden');
+    }
 }
 
-// Host syncs time to server
+if (unmuteBtn) {
+    unmuteBtn.addEventListener('click', () => {
+        if (ytPlayer && ytPlayer.unMute) {
+            ytPlayer.unMute();
+            ytPlayer.playVideo();
+            unmuteBtn.classList.add('hidden');
+        }
+    });
+}
+
+// Host syncs progress to server
 setInterval(() => {
     if (hostMode && playerReady && ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
         const currentTime = ytPlayer.getCurrentTime();
@@ -183,18 +271,16 @@ setInterval(() => {
             currentTime: currentTime,
             duration: duration
         });
-        // Also update host's own progress bar
         updateProgress(currentTime, duration);
     }
 }, 1000);
 
-
 // --- Modes: Host vs Client ---
 function updateUIMode() {
     if (hostMode) {
-        // Host
+        // Host mode
         document.body.classList.remove('client-mode');
-        hostBadge.classList.add('hidden');
+        hostBadge.classList.remove('hidden');
         clientControls.classList.add('hidden');
         qrContainer.classList.remove('hidden');
         secUsers.style.display = 'none';
@@ -202,13 +288,14 @@ function updateUIMode() {
         else if (!ytPlayer) window.onYouTubeIframeAPIReady();
         applyHostModeState();
     } else {
-        // Client
+        // Client mode
         document.body.classList.add('client-mode');
         hostBadge.classList.add('hidden');
         clientControls.classList.remove('hidden');
         qrContainer.classList.add('hidden');
         secUsers.style.display = '';
         if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+        if (unmuteBtn) unmuteBtn.classList.add('hidden');
     }
 }
 
@@ -221,9 +308,9 @@ toggleHost.addEventListener('change', (e) => {
 // Init on load
 updateUIMode();
 
-
 // --- Render UI ---
 function formatTime(sec) {
+    if (!sec || isNaN(sec)) return '0:00';
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
@@ -248,6 +335,11 @@ function renderState() {
     volSlider.value = state.volume;
     volLabel.textContent = `${state.volume}%`;
 
+    // Quality
+    if (qualitySelect && state.quality) {
+        qualitySelect.value = state.quality;
+    }
+
     // Queue
     qCount.textContent = state.queue.length;
     qCountMobile.textContent = state.queue.length;
@@ -260,9 +352,9 @@ function renderState() {
                 <span class="text-[10px] text-brand-light/50 w-4 text-center font-mono">${index + 1}</span>
                 <div class="flex-1 min-w-0">
                     <p class="text-xs text-white truncate">${escapeHtml(item.title)}</p>
-                    <p class="text-[9px] text-brand-light/50 truncate">เพิ่มโดย: <span style="color:${escapeHtml(item.color) || '#ABD2FA'}">${escapeHtml(item.addedBy)}</span></p>
+                    <p class="text-[9px] text-brand-light/50 truncate">เพิ่มโดย: <span style="color:${safeColor(item.color)}">${escapeHtml(item.addedBy)}</span></p>
                 </div>
-                <button onclick="socket.emit('remove-from-queue', '${escapeHtml(item.id)}')" class="w-6 h-6 rounded bg-red-900/20 text-red-400 hover:bg-red-500 hover:text-white transition opacity-0 group-hover:opacity-100 flex items-center justify-center">
+                <button data-remove-id="${escapeHtml(item.id)}" class="w-6 h-6 rounded bg-red-900/20 text-red-400 hover:bg-red-500 hover:text-white transition opacity-0 group-hover:opacity-100 flex items-center justify-center">
                     <i class="fa-solid fa-trash text-[10px]"></i>
                 </button>
             </div>
@@ -272,29 +364,40 @@ function renderState() {
     applyHostModeState();
 }
 
+// Queue delegation for delete buttons
+queueList.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove-id]');
+    if (btn) {
+        const id = btn.getAttribute('data-remove-id');
+        if (id) socket.emit('remove-from-queue', id);
+    }
+});
+
 function applyHostModeState() {
+    if (!state.currentVideo) {
+        if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+        return;
+    }
+
+    const videoId = state.currentVideo.videoId;
+
     if (!hostMode || !playerReady || !ytPlayer || !ytPlayer.loadVideoById) return;
 
-    if (state.currentVideo) {
-        let currentUrl = ytPlayer.getVideoUrl();
-        let ytId = state.currentVideo.videoId;
-        if (!currentUrl || !currentUrl.includes(ytId)) {
-            ytPlayer.loadVideoById(ytId);
-        }
-        
-        if (state.isPlaying) ytPlayer.playVideo();
-        else ytPlayer.pauseVideo();
-        
-        ytPlayer.setVolume(state.volume);
-    } else {
-        ytPlayer.stopVideo();
+    let currentUrl = ytPlayer.getVideoUrl ? ytPlayer.getVideoUrl() : '';
+    if (!currentUrl || !currentUrl.includes(videoId)) {
+        ytPlayer.loadVideoById(videoId);
     }
+    
+    if (state.isPlaying) ytPlayer.playVideo();
+    else ytPlayer.pauseVideo();
+    
+    ytPlayer.setVolume(state.volume);
 }
 
 function updateProgress(curr, dur) {
     if (dur > 0) {
         const p = (curr / dur) * 100;
-        progressFill.style.width = `${p}%`;
+        progressFill.style.width = `${Math.min(100, Math.max(0, p))}%`;
         timeNow.textContent = formatTime(curr);
         timeTotal.textContent = formatTime(dur);
     } else {
@@ -303,7 +406,6 @@ function updateProgress(curr, dur) {
         timeTotal.textContent = '0:00';
     }
 }
-
 
 // --- 3-Click Skip Logic ---
 let skipCount = 0;
@@ -338,12 +440,12 @@ function resetSkipBtn() {
     btnSkip.className = "flex-1 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 text-red-400 rounded-lg py-2 flex flex-col items-center transition relative overflow-hidden";
 }
 
-
 // --- Actions ---
 addBtn.addEventListener('click', () => {
-    if(!urlInput.value) return;
+    const val = urlInput.value.trim();
+    if(!val) return showToast('กรุณาวางลิงก์ YouTube ก่อนกดเพิ่ม', 'error');
     socket.emit('add-to-queue', { 
-        url: urlInput.value, 
+        url: val, 
         nickname: myProfile.name,
         color: myProfile.color 
     });
@@ -365,6 +467,14 @@ volSlider.addEventListener('input', e => {
 volDown.addEventListener('click', () => socket.emit('volume-control', Math.max(0, state.volume - 10)));
 volUp.addEventListener('click', () => socket.emit('volume-control', Math.min(100, state.volume + 10)));
 
+if (qualitySelect) {
+    qualitySelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        socket.emit('quality-control', val);
+        showToast(`ตั้งค่าความคมชัดเป็น: ${e.target.options[e.target.selectedIndex].text}`, 'info');
+    });
+}
+
 clearBtn.addEventListener('click', () => {
     if(confirm('ล้างคิวทั้งหมดหรือไม่?')) socket.emit('clear-queue');
 });
@@ -385,9 +495,10 @@ reactBad.addEventListener('click', () => sendReact('👎'));
 
 // Danmaku
 msgBtn.addEventListener('click', () => {
-    if(!msgInput.value.trim()) return;
+    const text = msgInput.value.trim();
+    if(!text) return;
     socket.emit('send-danmaku', {
-        text: msgInput.value.trim(),
+        text: text,
         nickname: myProfile.name,
         color: myProfile.color,
         tts: ttsToggle.checked
@@ -399,6 +510,9 @@ msgInput.addEventListener('keypress', e => {
     if(e.key === 'Enter') msgBtn.click();
 });
 
+socket.on('show-toast-broadcast', (msg) => {
+    showToast(msg, 'info');
+});
 
 // --- Socket Listeners ---
 socket.on('init', (data) => {
@@ -408,7 +522,6 @@ socket.on('init', (data) => {
     // Generate QR
     qrContainer.innerHTML = '<div id="qrcode"></div><div class="text-[9px] text-center text-primary mt-1 font-bold select-all" id="url-display"></div>';
     
-    // Use LAN IP so mobile phones can scan and access via Wi-Fi
     let link = window.location.origin;
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         link = `http://${data.localIp}:${data.port}`;
@@ -430,6 +543,7 @@ socket.on('init', (data) => {
 socket.on('state-update', (newState) => {
     state = newState;
     renderState();
+    if (hostMode) enforceQuality();
 });
 
 socket.on('time-update', (data) => {
@@ -454,7 +568,6 @@ function updateUsersList(users) {
     const keys = Object.keys(users);
     onlineNum.textContent = keys.length;
     
-    // Show/hide online count badge
     const onlineCount = $('online-count');
     if (keys.length > 0) {
         onlineCount.classList.remove('hidden');
@@ -469,9 +582,10 @@ function updateUsersList(users) {
 
     usersList.innerHTML = keys.map(id => {
         const u = users[id];
+        const color = safeColor(u.color);
         return `<div class="bg-[#0a0a0a] border border-brand-deep/30 rounded px-2 py-1 text-[10px] flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${escapeHtml(u.color) || '#7692FF'}"></span>
-            <span style="color: ${escapeHtml(u.color) || '#ABD2FA'}">${escapeHtml(u.name) || 'Anonymous'}</span>
+            <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${color}"></span>
+            <span style="color: ${color}">${escapeHtml(u.name) || 'ผู้ใช้ทั่วไป'}</span>
         </div>`;
     }).join('');
 }
@@ -488,28 +602,27 @@ socket.on('new-reaction', emoji => {
 });
 
 socket.on('new-danmaku', data => {
-
-    // TTS
-    if (data.tts && 'speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(data.text);
-        utterance.lang = 'th-TH'; // Default Thai
+    if (hostMode && data.tts && 'speechSynthesis' in window) {
+        const textToSpeak = (data.text || '').substring(0, 60);
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = 'th-TH';
         const voices = window.speechSynthesis.getVoices();
         const googleVoice = voices.find(v => v.name.toLowerCase().includes('google') && v.lang.includes('th'));
         if (googleVoice) utterance.voice = googleVoice;
         window.speechSynthesis.speak(utterance);
     }
 
-    // Visual text
     const el = document.createElement('div');
     el.className = 'danmaku-text';
-    el.innerHTML = `<span style="color: ${escapeHtml(data.color) || '#fff'}">${escapeHtml(data.nickname) || ''}:</span> ${escapeHtml(data.text)}`;
+    const color = safeColor(data.color);
+    el.innerHTML = `<span style="color: ${color}">${escapeHtml(data.nickname) || ''}:</span> ${escapeHtml(data.text)}`;
     el.style.top = (Math.random() * 60 + 10) + '%';
     el.style.animationDuration = (Math.random() * 4 + 7) + 's';
     danmakuLayer.appendChild(el);
     el.addEventListener('animationend', () => el.remove());
 });
 
-socket.on('error-msg', msg => alert(msg));
+socket.on('error-msg', msg => showToast(msg, 'error'));
 
 // --- Connection Status Badge ---
 const statusBadge = $('status-badge');
@@ -524,7 +637,6 @@ socket.on('disconnect', () => {
     statusBadge.className = 'text-[11px] px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/30';
 });
 
-
 // --- Mobile Tabs ---
 if (isMobile) {
     tabCtrl.addEventListener('click', () => {
@@ -537,7 +649,6 @@ if (isMobile) {
     tabQueue.addEventListener('click', () => {
         secCtrl.classList.add('hidden');
         secQueue.classList.remove('hidden');
-        secQueue.classList.add('block'); // override md:block
         tabQueue.className = 'flex-1 py-2.5 text-xs font-medium text-brand-peri border-b-2 border-brand-peri';
         tabCtrl.className = 'flex-1 py-2.5 text-xs font-medium text-brand-light/50 border-b-2 border-transparent';
     });
@@ -550,7 +661,7 @@ const theaterBtn = $('theater-btn');
 theaterBtn.addEventListener('click', () => {
     if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(err => {
-            alert(`Error: ${err.message}`);
+            showToast(`Error: ${err.message}`, 'error');
         });
     } else {
         document.exitFullscreen();
@@ -560,7 +671,7 @@ theaterBtn.addEventListener('click', () => {
 fsBtn.addEventListener('click', () => {
     if (!document.fullscreenElement) {
         playerArea.requestFullscreen().catch(err => {
-            alert(`Error: ${err.message}`);
+            showToast(`Error: ${err.message}`, 'error');
         });
     } else {
         document.exitFullscreen();
